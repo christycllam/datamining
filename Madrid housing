@@ -1,0 +1,323 @@
+library(ggplot2)
+library(lattice)
+library(caret)
+library(dplyr)
+library(tidyr)
+library(rpart)
+library(tibble)
+library(bitops)
+library(rattle)
+library(rpart.plot)
+library(RColorBrewer)
+library(neuralnet)
+library(forecast)
+
+#load data
+df4 <-read.csv('Madrid Housing_Clean_withProfit_2.csv')
+#3 is high RY, 2 is medium, 1 is low
+df_basic <- df4[,c(1:3,16,33)]
+colnames(df_basic)[5] <- "RYClass"
+df_basic$RYClass <- as.factor(df_basic$RYClass)
+write.csv(df_basic,'roombasic.csv')
+
+set.seed(300)  
+df_basic <- df_basic %>% drop_na()
+#Dataset separate
+train.index <- sample(row.names(df_basic), 0.6*dim(df_basic)[1])
+test.index <- setdiff(row.names(df_basic), train.index)  
+train_df2<-df_basic[train.index, ]
+test_df2<-df_basic[test.index, ]
+t(t(names(train_df2)))
+
+# normalize the data
+train.norm.df2 <- train_df2[,-5]
+test.norm.df2 <- test_df2[,-5]
+norm.values <- preProcess(train_df2[, -5], method=c("center", "scale"))
+train.norm.df2 <- predict(norm.values, train_df2[, -5])
+test.norm.df2 <- predict(norm.values, test_df2[, -5])
+
+library(e1071)
+# optimal k
+accuracy.df <- data.frame(k = seq(1, 15, 1), overallaccuracy = rep(0, 15))
+for(i in 1:15) {
+  knn.pred <- class::knn(train = train.norm.df2,
+                         test =test.norm.df2,
+                         cl = train_df2$RYClass, k =i)
+  accuracy.df[i, 2] <- confusionMatrix(knn.pred,
+                                       as.factor(test_df2$RYClass))$overall[1]}
+accuracy.df
+
+which(accuracy.df[,2] == max(accuracy.df[,2]))
+
+#knn model
+knn.pred <- class::knn(train = train.norm.df2,
+                       test =test.norm.df2,
+                       cl = train_df2$RYClass, k =9)
+confusionMatrix(knn.pred,as.factor(test_df2$RYClass), positive = "1")
+confusionMatrix(knn.pred, reference = test_df2$RYClass)
+plot(knn.pred)
+
+## Second bucket
+df3 <- df4
+df3 <- df3[,c(5:12,19,33)]
+df3[is.na(df3)] <- 0
+df3$has_parking <- as.numeric(df3$has_parking)
+df3$has_ac <- as.factor(df3$has_ac)
+df3$has_lift <- as.factor(df3$has_lift)
+df3$has_garden <- as.factor(df3$has_garden)
+df3$has_pool <- as.factor(df3$has_pool)
+df3$has_terrace <- as.factor(df3$has_terrace)
+df3$has_balcony <- as.factor(df3$has_balcony)
+df3$has_storage_room <- as.factor(df3$has_storage_room)
+df3$has_parking <- as.factor(df3$has_parking)
+df3$heating <- as.factor(df3$heating)
+df3$Column2 <- as.factor(df3$Column2)
+colnames(df3)[10] <- "RYClass"
+write.csv(df3,'room facility.csv')
+#Dataset separate
+train2.index <- sample(row.names(df3), 0.6*dim(df3)[1])
+test2.index <- setdiff(row.names(df3), train2.index)  
+train2_df2<-df3[train2.index, ]
+test2_df2<-df3[test.index, ]
+t(t(names(train2_df2)))
+# normalize the data
+train2.norm.df2 <- train2_df2[,-10]
+test2.norm.df2 <- test2_df2[,-10]
+# optimal k
+accuracy.df <- data.frame(k = seq(1, 15, 1), overallaccuracy = rep(0, 15))
+for(i in 1:15) {
+  knn.pred <- class::knn(train = train2.norm.df2,
+                         test =test2.norm.df2,
+                         cl = train2_df2$RYClass, k =i)
+  accuracy.df[i, 2] <- confusionMatrix(knn.pred,
+                                       as.factor(test2_df2$RYClass))$overall[1]}
+accuracy.df
+which(accuracy.df[,2] == max(accuracy.df[,2]))
+
+#knn model
+knn.pred <- class::knn(train = train.norm.df2,
+                       test =test.norm.df2,
+                       cl = train_df2$RYClass, k =2)
+confusionMatrix(knn.pred,as.factor(test_df2$RYClass), positive = "1")
+confusionMatrix(knn.pred, reference = test_df2$RYClass)
+plot(knn.pred)
+
+#load room_facility data
+room_facility<-read.csv("room facility.csv")
+View(room_facility)
+room_facility<-room_facility[-1]
+summary(room_facility)
+
+#best rental yield is 3, medium is 2, low is 1 
+room_facility$RYClass[room_facility$RYClass == '3']<- "Best "
+room_facility$RYClass[room_facility$RYClass == '2']<- "medium "
+room_facility$RYClass[room_facility$RYClass == '1']<- "low"
+View(room_facility)
+summary(room_facility)
+
+#Dataset separate
+set.seed(1)
+train.index <- sample(row.names(room_facility), 0.6*dim(room_facility)[1])
+test.index <- setdiff(row.names(room_facility), train.index)  
+train_df1<-room_facility[train.index, ]
+test_df1<-room_facility[test.index, ]
+t(t(names(train_df1)))
+dim(train_df1)
+dim(test_df1) 
+table(train_df1$RYClass) #distribution column
+table(test_df1$RYClass)
+
+#decision tree: room_facility
+model <- rpart(RYClass~ has_ac
+               +has_lift
+               +has_garden
+               +has_pool
+               +has_terrace
+               +has_balcony
+               +has_storage_room
+               +has_parking
+               +heating,
+               data = train_df1,
+               method = "class", # classification model
+               parms = list(split = "information"), # split rules
+               control = rpart.control(cp = 0.005) # complexity parameter
+               )
+fancyRpartPlot(model)
+# result
+printcp(model) 
+asRules(model)
+
+#prediction
+x<-subset(test_df1,select=-RYClass)
+pred<-predict(model,x,type="class")
+k<-test_df1[,"RYClass"]
+table(pred,k)
+confusionMatrix(pred,as.factor(test_df1$RYClass),positive = "1")
+
+
+#load roombasic data
+roombasic<-read.csv("roombasic.csv")
+View(roombasic)
+roombasic<-roombasic[-1]
+summary(roombasic)
+
+#best rental yield is 3, medium is 2, low is 1 
+roombasic$RYClass[roombasic$RYClass == '3']<- "best"
+roombasic$RYClass[roombasic$RYClass == '2']<- "medium"
+roombasic$RYClass[roombasic$RYClass == '1']<- "low"
+View(roombasic)
+summary(roombasic)
+#Dataset separate
+set.seed(1)
+train.index <- sample(row.names(roombasic), 0.6*dim(roombasic)[1])
+test.index <- setdiff(row.names(roombasic), train.index)  
+train_df2<-roombasic[train.index, ]
+test_df2<-roombasic[test.index, ]
+t(t(names(train_df2)))
+dim(train_df2)
+dim(test_df2) 
+table(train_df2$RYClass) #distribution column
+table(test_df2$RYClass)
+
+
+
+#decision tree:roombasic
+model2 <- rpart(RYClass~ sq_mt_built
+               +n_rooms
+               +floor
+               +n_bathrooms,
+               data = train_df2,
+               method = "class", # classification model
+               parms = list(split = "information"), # split rules
+               control = rpart.control(cp = 0.005) # complexity parameter
+)
+fancyRpartPlot(model2)
+#pruning
+model2_pruned <- prune(model2, cp = 0.01)
+fancyRpartPlot(model2_pruned)
+
+# result
+printcp(model2_pruned) 
+asRules(model2_pruned)
+
+#prediction
+x<-subset(test_df2,select=-RYClass)
+pred<-predict(model2_pruned,x,type="class")
+k<-test_df2[,"RYClass"]
+table(pred,k)
+confusionMatrix(pred,as.factor(test_df2$RYClass),positive = "1")
+
+#loading data
+read.csv("Madrid Housing_Clean_withProfit_3.csv")
+df <- read.csv("Madrid Housing_Clean_withProfit_3.csv")
+View(df)
+summary(df)
+
+#cleaning data
+df_basic <- df[,c(1:3,15,32)]
+colnames(df_basic)[5] <- "RYClass"
+df_basic$RYClass <- as.factor(df_basic$RYClass)
+write.csv(df_basic,'roombasic.csv')
+
+set.seed(300)  
+df_basic <- df_basic %>% drop_na()
+
+#dummies
+df_basic$RYClass_A <- 1*(df_basic$RYClass == 'A')
+df_basic$RYClass_B <- 1*(df_basic$RYClass == 'B')
+
+#Dataset separate
+train.index <- sample(row.names(df_basic), 0.6*dim(df_basic)[1])
+test.index <- setdiff(row.names(df_basic), train.index)  
+train_df2<-df_basic[train.index, ]
+test_df2<-df_basic[test.index, ]
+t(t(names(train_df2)))
+
+#normalizing the data
+norm.values <- preProcess(train_df2, method = 'range')
+train.norm.df <- predict(norm.values, train_df2)
+valid.norm.df <- predict(norm.values, test_df2)
+
+#creating model
+model1 <- neuralnet(RYClass_A ~ sq_mt_built 
+                   + floor 
+                   + n_bathrooms
+                   + n_rooms,
+                   data = train.norm.df, linear.output = F, hidden = 2)
+plot(model1)
+
+#predictions
+training.prediction1 <- compute(model1, train.norm.df)
+validation.prediction1 <- compute(model1, valid.norm.df)
+training.prediction1
+validation.prediction1
+
+#confusion Matrix
+results <- data.frame(actual = valid.norm.df$RYClass_A, 
+                      prediction = validation.prediction1$net.result)
+
+roundedresults<-sapply(results,round,digits=0)
+roundedresultsdf=data.frame(roundedresults)
+attach(roundedresultsdf)
+table(actual,prediction)
+
+
+##Room facilities
+
+#cleaning data
+df_facilities <- df[,c(5:6,8:12,18,32)]
+colnames(df_facilities)[9] <- "RYClass"
+View(df_facilities)
+
+df_facilities$RYClass <- as.factor(df_facilities$RYClass)
+df_facilities[is.na(df_facilities)] <- 0
+write.csv(df_facilities,'roomfacilities.csv')
+
+df_facilities <- df_facilities %>% drop_na()
+
+#dummies
+df_facilities$RYClass_A <- 1*(df_facilities$RYClass == 'A')
+df_facilities$RYClass_B <- 1*(df_facilities$RYClass == 'B')
+View(df_facilities)
+
+#Dataset separate
+set.seed(1500) 
+train.index1 <- sample(row.names(df_facilities), 0.6*dim(df_facilities)[1])
+test.index1 <- setdiff(row.names(df_facilities), train.index1)  
+train_df3<-df_facilities[train.index1, ]
+test_df3<-df_facilities[test.index1, ]
+t(t(names(train_df3)))
+
+#normalizing the data
+norm.values3 <- preProcess(train_df3, method = 'range')
+train.norm.df3 <- predict(norm.values3, train_df3)
+valid.norm.df3 <- predict(norm.values3, test_df3)
+
+View(df_facilities)
+
+#creating model
+model3 <- neuralnet(RYClass_A ~ has_ac
+                    + has_lift
+                    + has_pool
+                    + has_terrace
+                    + has_balcony
+                    + has_storage_room
+                    + has_parking
+                    + heating,
+                    data = train.norm.df3, linear.output = F, hidden = 2)
+plot(model3)
+
+#predictions
+training.prediction3 <- compute(model3, train.norm.df3)
+validation.prediction3 <- compute(model3, valid.norm.df3)
+training.prediction3
+validation.prediction3
+
+#confusion Matrix
+results2 <- data.frame(actual = valid.norm.df3$RYClass_A, 
+                      prediction = validation.prediction3$net.result)
+
+roundedresults2<-sapply(results2,round,digits=0)
+roundedresultsdf2=data.frame(roundedresults2)
+attach(roundedresultsdf2)
+table(actual,prediction)
