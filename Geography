@@ -1,0 +1,308 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[5]:
+
+
+# import libraries
+import sklearn
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+#from sklearn.linear_model import LogisticRegression
+#from azureml.explain.model.tabular_explainer import TabularExplainer
+from sklearn_pandas import DataFrameMapper
+import pandas as pd
+import numpy as np
+import folium
+import json
+import urllib
+import urllib.request
+from urllib.request import urlopen
+import tabula # to scrape table data from PDF
+import geojson
+import matplotlib.pyplot as plt
+import seaborn as sns
+import requests # library to handle requests
+from scipy.spatial.distance import cdist
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+from sklearn import cluster
+print("libraries imported again")
+
+
+# In[23]:
+
+
+# read the 
+import pandas as pd
+import numpy as np
+
+datafile= 'G:\\BA资料\\DM\\GA\\fullmdr1.csv'  # 第一张表属性标签
+resultfile = 'G:\\BA资料\\DM\\GA\\Clustering_Full.csv'  # 数据输出路径
+
+# 读取原始数据，指定UTF-8编码（需要用文本编辑器将数据装换为UTF-8编码）
+df_Madrid_Districts_GPS = pd.read_csv(datafile, encoding = 'utf-8')
+
+
+df_Madrid_Districts_GPS.head()
+
+
+# In[24]:
+
+
+index3 = df_Madrid_Districts_GPS['Rental Yield']>= 0
+
+#删除2.29日数据
+
+df_Madrid_Districts_GPS_clean = df_Madrid_Districts_GPS[ index3 ]
+print('数据清洗后数据的形状为：',df_Madrid_Districts_GPS_clean.shape)
+cleanedfile = 'G:\\BA资料\\DM\\GA\\Cleaned_MDRGPS.csv'  # 数据输出路径
+
+df_Madrid_Districts_GPS_clean.to_csv(cleanedfile)  # 保存清洗后的数据
+df_Madrid_Districts_GPS=df_Madrid_Districts_GPS_clean[['District','lat','long','Rental Yield']]
+df_Madrid_Districts_GPS
+
+
+# In[25]:
+
+
+# Create labels for rent price, rooms...
+Rental_Yield_labels   = range(1, 50)
+len(Rental_Yield_labels)
+
+
+# In[26]:
+
+
+Rental_Yield_groups = pd.qcut(df_Madrid_Districts_GPS['Rental Yield'], q=49, labels = Rental_Yield_labels, duplicates='drop')
+
+
+# In[27]:
+
+
+
+# Create new columns: rent_price_groups,sq_mt_built_groups,n_rooms_groups,floor_groups
+Housing_style = df_Madrid_Districts_GPS.assign(Rental_Yield_groups = Rental_Yield_groups.values)
+
+# Create "pollution scoring": the lower the score, the less polluted the area is
+# def concatenate_scores(x): return str(x['NO2_groups']) + str(x['PM10_groups']) + str(x['OZONE_groups'])
+def concatenate_scores(x): return x['Rental_Yield_groups']
+
+Housing_style['Housing_scoring'] = Housing_style.apply(concatenate_scores, axis=1)
+
+final_Housing_score = Housing_style.sort_values(by='Housing_scoring')
+
+final_Housing_score['Housing_scoring'] = final_Housing_score['Housing_scoring']/4 # to average pollution scoring
+final_Housing_score
+
+
+# In[28]:
+
+
+result_file = pd.DataFrame(final_Housing_score[1:])
+result_file.to_csv(resultfile)  # 导出结果
+
+
+# In[29]:
+
+
+MADRID_MAP_HEATMAP = folium.Map(location=[40.4165001, -3.7025599], zoom_start=9,tiles='cartodbpositron') # Madr
+
+tiles = ['stamenwatercolor', 'cartodbpositron', 'openstreetmap', 'stamenterrain']
+for tile in tiles:    folium.TileLayer(tile).add_to(MADRID_MAP_HEATMAP)
+
+
+# In[30]:
+
+
+geo_path = 'G:\\BA资料\\DM\\GA\\distritos.geojson'
+
+
+# In[31]:
+
+
+#create empty lists used for storing their final scores
+
+
+City1,City2,City3,City4,City5,City6,City7,City8,City9,City10,City11,City12,City13,City14,City15,City16,City17,City18,City19,City20=([] for i in range(20))
+
+
+# In[39]:
+
+
+def Avg(list):
+    Add_row=[]
+    s=0
+    score=0
+    for i in list:
+        s=s+i[3]
+    score=s/len(list)
+    return score
+
+
+# In[40]:
+
+
+c=0
+
+data_array = np.array(final_Housing_score)
+data_list =data_array.tolist()
+for data in data_list:
+    if data[0] ==' Arganzuela':
+        City1.append(data)  
+    elif data[0]==' Barajas':
+        City2.append(data)
+    elif data[0]==' Carabanchel':
+        City3.append(data)
+    elif data[0]==' Centro':
+        City4.append(data)
+    elif data[0]==' Chamartín':
+        City5.append(data)
+    elif data[0]==' Chamberí':
+        City6.append(data)
+    elif data[0]==' Ciudad Lineal':
+        City7.append(data)
+    elif data[0]==' Fuencarral':
+        City8.append(data)
+    elif data[0]==' Hortaleza':
+        City9.append(data)
+    elif data[0]==' Moncloa':
+        City10.append(data)
+    elif data[0]==' Moratalaz':
+        City11.append(data)
+    elif data[0]==' Puente de Vallecas':
+        City12.append(data)
+    elif data[0]==' Retiro':
+        City13.append(data)
+    elif data[0]==' Salamanca':
+        City14.append(data)
+    elif data[0]==' Tetuán':
+        City15.append(data)
+    elif data[0]==' Usera':
+        City16.append(data)
+    elif data[0]==' Villa de Vallecas':
+        City17.append(data)
+    elif data[0]==' Vicálvaro':
+        City18.append(data)
+    elif data[0]==' Latina':
+        City19.append(data)    
+    elif data[0]==' Villaverde':
+        City20.append(data)
+            
+score,s=0,0
+
+for i in City1:
+    s=s+i[3]
+score1=s/len(City1)
+list=[City1[0][0],score1]
+list
+
+
+# In[41]:
+
+
+print(Avg(City1),'\n',
+     Avg(City2),'\n',
+     Avg(City3),'\n',
+     Avg(City4),'\n',
+      Avg(City5),'\n',
+     Avg(City6),'\n',
+     Avg(City7),'\n',
+     Avg(City8),'\n',
+     Avg(City9),'\n',
+     Avg(City10),'\n',
+     Avg(City11),'\n',
+     Avg(City12),'\n',
+     Avg(City13),'\n',
+     Avg(City14),'\n',
+     Avg(City15),'\n',
+     Avg(City16),'\n',
+     Avg(City17),'\n',
+     Avg(City18),'\n',
+     Avg(City19),'\n',
+     Avg(City20),'\n')
+
+
+# In[42]:
+
+
+datafile= 'G:\\BA资料\\DM\\GA\\Districts_with_scores.csv'  # 第一张表属性标签
+
+# Illustrate all the scores within this dataset
+data = pd.read_csv(datafile, encoding = 'utf-8')
+data
+
+
+# In[43]:
+
+
+
+choropleth = folium.Choropleth(geo_data=geo_path, 
+                               data=data,  
+                               columns=['District', 'Housing_score'], 
+                               key_on='feature.properties.nombre',
+                               fill_color='YlOrRd', 
+                               fill_opacity=0.8,  
+                               line_opacity=0.8, 
+                               legend_name='Housing Scores of Madrid',).add_to(MADRID_MAP_HEATMAP)
+choropleth.geojson.add_child(    folium.features.GeoJsonTooltip(['nombre'], labels=False,font=40))
+
+MADRID_MAP_HEATMAP
+
+
+# In[205]:
+
+
+import xlrd
+#打开excel
+wb = xlrd.open_workbook('G:\\BA资料\\DM\\GA\\1.xlsx')
+#按工作簿定位工作表
+sh = wb.sheet_by_name('1')
+print(sh.nrows)#有效数据行数
+print(sh.ncols)#有效数据列数
+print(sh.cell(0,0).value)#输出第一行第一列的值
+print(sh.row_values(0))#输出第一行的所有值
+#将数据和标题组合成字典
+print(dict(zip(sh.row_values(0),sh.row_values(1))))
+#遍历excel，打印所有数据
+for i in range(sh.nrows):
+    print(sh.row_values(i))
+
+
+# In[53]:
+
+
+print(sh.nrows_values)
+
+
+# In[14]:
+
+
+import pandas as pd
+
+df = pd.read_excel('G:\\BA资料\\DM\\GA\\1.xlsx')
+data=df.values
+print("获取到所有的值:\n{}".format(data))
+
+
+# In[ ]:
+
+
+# create MADRID map
+
+MADRID_MAP_HEATMAP.choropleth(
+ geo_path ,
+ data = data,
+ columns = ['District', 'Housing_score'],
+ key_on = 'feature.properties.nombre',
+ fill_color = 'YlOrRd',
+ fill_opacity = 0.6,
+ line_opacity = 1,
+ legend_name = 'Madrid: 2019 pollution scoring by district')
+
+MADRID_MAP_HEATMAP.geojson.add_child(folium.features.GeoJsonTooltip(['nombre'], labels=True))
+#Display Map
+MADRID_MAP_HEATMAP
+# higher scores show higher pollution districts
+
